@@ -2,19 +2,20 @@
 # Configuration
 # ============================================================================
 
-TARGET := sim
-
-CXX       := clang++
-VERILATOR := verilator
-GTKWAVE   := gtkwave
+IVERILOG     := iverilog
+IVERILOG_VPI := iverilog-vpi
+VVP          := vvp
+GTKWAVE      := gtkwave
 
 BUILD_DIR := build
 RTL_DIR   := rtl
 SRC_DIR   := src
 
-TOP := top
-
-WAVE_FILE := $(BUILD_DIR)/wave.fst
+SIM_TOP    := sim_top
+SIM_IMAGE  := $(BUILD_DIR)/sim.vvp
+VPI_MODULE := cpp_test
+VPI_FILE   := $(BUILD_DIR)/$(VPI_MODULE).vpi
+WAVE_FILE  := $(BUILD_DIR)/wave.vcd
 
 
 # ============================================================================
@@ -22,47 +23,30 @@ WAVE_FILE := $(BUILD_DIR)/wave.fst
 # ============================================================================
 
 RTL_SRCS := \
-	$(RTL_DIR)/top.sv
+	$(RTL_DIR)/top.sv \
+	$(RTL_DIR)/teu/teu.sv \
+	$(RTL_DIR)/teu/fpu.sv \
+	$(RTL_DIR)/fpu/adder/adder.v \
+	$(RTL_DIR)/fpu/multiplier/multiplier.v \
+	$(RTL_DIR)/fpu/divider/divider.v
 
-CPP_SRCS := \
-	$(SRC_DIR)/main.cpp
+TB_SRCS := \
+	$(RTL_DIR)/sim_top.sv
 
-RTL_SRCS_ABS := $(abspath $(RTL_SRCS))
-CPP_SRCS_ABS := $(abspath $(CPP_SRCS))
+VPI_SRCS := \
+	$(SRC_DIR)/main.cpp \
+	$(SRC_DIR)/vpi_interface.cpp
 
-
-# ============================================================================
-# Compiler flags
-# ============================================================================
-
-CXXFLAGS := \
-	-std=c++20 \
-	-Wall \
-	-Wextra \
-	-Wpedantic \
-	-O2 \
-	-g
-
-INCLUDES := \
-	-I$(abspath src) \
-	-I$(abspath include)
-
-	
+VPI_SRCS_ABS := $(abspath $(VPI_SRCS))
 
 
 # ============================================================================
-# Verilator flags
+# Icarus Verilog flags
 # ============================================================================
 
-VERILATOR_FLAGS := \
-	--cc \
-	--exe \
-	--build \
-	--sv \
-	--trace-fst \
-	--top-module $(TOP) \
-	--Mdir $(BUILD_DIR)/verilator \
-	-CFLAGS "$(CXXFLAGS) $(INCLUDES)" \
+IVERILOG_FLAGS := \
+	-g2012 \
+	-s $(SIM_TOP) \
 	-Wall
 
 
@@ -71,23 +55,20 @@ VERILATOR_FLAGS := \
 # ============================================================================
 
 .PHONY: all
-all: $(TARGET)
+all: $(SIM_IMAGE) $(VPI_FILE)
 
 
 # ============================================================================
-# Build simulation
+# Build simulation image and C++ VPI module
 # ============================================================================
 
-$(TARGET): $(RTL_SRCS) $(CPP_SRCS)
+$(SIM_IMAGE): $(RTL_SRCS) $(TB_SRCS)
 	@mkdir -p $(BUILD_DIR)
+	$(IVERILOG) $(IVERILOG_FLAGS) -o $@ $^
 
-	$(VERILATOR) \
-		$(VERILATOR_FLAGS) \
-		$(RTL_SRCS_ABS) \
-		$(CPP_SRCS_ABS) \
-		-o $(TARGET)
-
-	@cp $(BUILD_DIR)/verilator/$(TARGET) $@
+$(VPI_FILE): $(VPI_SRCS)
+	@mkdir -p $(BUILD_DIR)
+	cd $(BUILD_DIR) && $(IVERILOG_VPI) --name=$(VPI_MODULE) $(VPI_SRCS_ABS)
 
 
 # ============================================================================
@@ -95,18 +76,16 @@ $(TARGET): $(RTL_SRCS) $(CPP_SRCS)
 # ============================================================================
 
 .PHONY: run
-run: $(TARGET)
-	./$(TARGET)
+run: all
+	$(VVP) -M$(abspath $(BUILD_DIR)) -m$(VPI_MODULE) $(SIM_IMAGE)
 
 
 # ============================================================================
-# Generate FST waveform
+# Generate VCD waveform
 # ============================================================================
 
 .PHONY: wave
-wave: $(TARGET)
-	@mkdir -p $(BUILD_DIR)
-	./$(TARGET)
+wave: run
 	@echo "Waveform written to $(WAVE_FILE)"
 
 
@@ -125,23 +104,11 @@ waves: wave
 
 .PHONY: clean
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR)
 
 
 .PHONY: rebuild
 rebuild: clean all
-
-
-# ============================================================================
-# Debug build
-# ============================================================================
-
-.PHONY: debug
-debug:
-	$(MAKE) clean
-	$(MAKE) \
-		CXXFLAGS="-std=c++20 -Wall -Wextra -Wpedantic -O0 -g" \
-		all
 
 
 # ============================================================================
@@ -151,11 +118,10 @@ debug:
 .PHONY: help
 help:
 	@echo "Targets:"
-	@echo "  make          Build simulation"
-	@echo "  make run      Build simulation and run"
-	@echo "  make wave     Run simulation and generate FST waveform"
-	@echo "  make waves    Generate FST waveform and open GTKWave"
+	@echo "  make          Build the Icarus simulation image and C++ VPI module"
+	@echo "  make run      Build and run the simulation"
+	@echo "  make wave     Run the simulation and generate a VCD waveform"
+	@echo "  make waves    Generate a VCD waveform and open GTKWave"
 	@echo "  make clean    Remove build artifacts"
 	@echo "  make rebuild  Clean and rebuild"
-	@echo "  make debug    Build with debug flags"
 	@echo "  make help     Show this help"
