@@ -1,3 +1,0 @@
-[submodule "rtl/fpu"]
-	path = rtl/fpu
-	url = https://github.com/dawsonjon/fpu.git
