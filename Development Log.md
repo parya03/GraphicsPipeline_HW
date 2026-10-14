@@ -38,6 +38,9 @@ The core contains:
 - Bus (currently planning on 128 bit)
 - Memory buffers (caches?)
 
+### 10/13
+Changed to use Scala since it's less tedious than Verilog.
+
 ## AI Acknowledgement
 AI tools were used for menial stuff (print statements, verbose syntax, "enhanced" repeating of code manually). But the code is still my own.
 
