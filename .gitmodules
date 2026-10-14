@@ -1,0 +1,3 @@
+[submodule "chisel-fp-generators"]
+	path = chisel-fp-generators
+	url = https://socks.lbl.gov/mvega/chisel-fp-generators.git
